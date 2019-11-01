@@ -1,2 +1,2 @@
-# vehicle-automous-simulations
-For keeping some scripts of some vehicle automous simulators
+# vehicles-autonomous-simulations
+For keeping some scripts of some vehicle autonomous simulators
