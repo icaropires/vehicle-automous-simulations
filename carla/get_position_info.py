@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.6
 
 import glob
 import os
@@ -18,11 +18,17 @@ import carla
 import random
 import time
 
-# Interval between pictures taken by the camera
-CAMERA_INTERVAL = 0.3
+ROTATION_PARAMS = ('pitch', 'yaw', 'roll')
+COORDINATES_PARAMS = ('velocity', 'acceleration',
+                      'angular_velocity', 'location')
+CONTROL_PARAMS = ('throttle', 'steer', 'brake', 'hand_brake',
+                  'reverse', 'manual_gear_shift', 'gear')
+
+GNSS_PARAMS = ('latitude', 'longitude', 'altitude')
 
 
 if __name__ == '__main__':
+    ticks = []
     actor_list = []
 
     try:
@@ -37,49 +43,82 @@ if __name__ == '__main__':
         transform = random.choice(world.get_map().get_spawn_points())
         vehicle = world.spawn_actor(vehicle_bp, transform)
 
-        coordinates_params = (
-            'velocity', 'acceleration', 'angular_velocity', 'location'
+        gnss_bp = blueprint_library.find('sensor.other.gnss')
+        gnss_transform = carla.Transform(carla.Location(x=1.5, z=2.4))
+        gnss = world.spawn_actor(
+            gnss_bp,
+            gnss_transform,
+            attach_to=vehicle
         )
-        rotation_params = ('pitch', 'yaw', 'roll')
+        actor_list.append(gnss)
 
-        labels = [f'{attr}_{c}' for attr in coordinates_params
-                  for c in ('x', 'y', 'z')]
-        labels.extend(f'rotation_{attr}' for attr in rotation_params)
+        pos_file = open('pos.csv', 'w')
+        gnss_file = open('gnss.csv', 'w')
 
+        def print_pos_labels():
+            labels = ['timestamp']
+            labels.extend(f'{attr}_{c}' for attr in COORDINATES_PARAMS
+                          for c in ('x', 'y', 'z'))
 
-        control_params = ('throttle', 'steer', 'brake', 'hand_brake',
-                          'reverse', 'manual_gear_shift', 'gear')
-        labels.extend(f'control_{attr}' for attr in control_params)
+            labels.extend(f'rotation_{attr}' for attr in ROTATION_PARAMS)
 
-        print(*labels, sep=',')
-        def print_info(_):
-            # print('Transform', vehicle.get_transform())
+            labels.extend(f'control_{attr}' for attr in CONTROL_PARAMS)
+
+            # print(*labels, sep=',')
+            pos_file.write(','.join(map(str, labels)) + '\n')
+
+        def print_pos_info(w_snapshot):
             coordinates_attrs = (
-                getattr(vehicle, 'get_' + p)() for p in coordinates_params
+                getattr(vehicle, 'get_' + p)() for p in COORDINATES_PARAMS
             )
-            values = [
+
+            values = [w_snapshot.platform_timestamp]
+            values.extend(
                 getattr(attr, c) for attr in coordinates_attrs
                 for c in ('x', 'y', 'z')
-            ]
+            )
 
             rotation = vehicle.get_transform().rotation
             values.extend(
-                getattr(rotation, attr) for attr in rotation_params
+                getattr(rotation, attr) for attr in ROTATION_PARAMS
             )
 
             control = vehicle.get_control()
             values.extend(
-                getattr(control, attr) for attr in control_params
+                getattr(control, attr) for attr in CONTROL_PARAMS
             )
 
-            print(*values, sep=',')
+            # print(*values, sep=',')
+            pos_file.write(','.join(map(str, values)) + '\n')
 
-        ticks = []
+        def print_gnss_labels():
+            labels = ['timestamp']
+            labels.extend(attr for attr in GNSS_PARAMS)
+
+            # print(*labels, sep=',')
+            gnss_file.write(','.join(map(str, labels)) + '\n')
+
+        def print_gnss_info(data):
+            values = [world.get_snapshot().platform_timestamp]
+
+            values.extend(
+                getattr(data, attr) for attr in GNSS_PARAMS
+            )
+
+            # print(*values, sep=',')
+            gnss_file.write(','.join(map(str, values)) + '\n')
+
+        print('Writting gnss data...')
+        print_gnss_labels()
+        gnss.listen(print_gnss_info)
+
+        print('Writting position data...')
+        print_pos_labels()
         ticks.append(
-            world.on_tick(print_info)
+            world.on_tick(print_pos_info)
         )
 
-        for _ in range(1):
+        for _ in range(20):
             vehicle.apply_control(
                 carla.VehicleControl(throttle=1.0, steer=0.1)
             )
@@ -94,6 +133,13 @@ if __name__ == '__main__':
         print('destroying actors')
         for actor in actor_list:
             actor.destroy()
+
+        print('destroying ticks')
         for tick in ticks:
             world.remove_on_tick(tick)
+
+        time.sleep(0.5)
+        pos_file.close()
+        gnss_file.close()
+
         print('done.')
