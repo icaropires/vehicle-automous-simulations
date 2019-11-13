@@ -31,7 +31,6 @@ GNSS_PARAMS = ('latitude', 'longitude', 'altitude')
 if __name__ == '__main__':
     ticks = []
     actor_list = []
-    autonomous_list = []
 
     n_output = len([d for d in os.listdir() if d.startswith('out')])
     out_folder = f'out{n_output:02d}'
@@ -101,26 +100,17 @@ if __name__ == '__main__':
         gnss_file.write(','.join(map(str, values)) + '\n')
 
     def get_autonomous():
-        vehicle_bp = random.choice(blueprint_library.filter('vehicle.tesla.*'))
+        vehicle_bp = random.choice(
+            blueprint_library.filter('vehicle.tesla.*')
+        )
 
-        transform = random.choice(world.get_map().get_spawn_points())
-        SpawnActor = carla.command.SpawnActor
-        SetAutopilot = carla.command.SetAutopilot
-        FutureActor = carla.command.FutureActor
+        transform = random.choice(
+            world.get_map().get_spawn_points()
+        )
+        vehicle = world.spawn_actor(vehicle_bp, transform)
+        vehicle.set_autopilot()
 
-        batch = [
-            SpawnActor(vehicle_bp, transform).then(SetAutopilot(FutureActor, True))
-        ]
-
-        for response in client.apply_batch_sync(batch):
-            if not response.error:
-                autonomous_list.append(response.actor_id)
-            else:
-                logging.error(response.error)
-
-        vehicle_id, *_ = autonomous_list
-        vehicle = world.get_actor(vehicle_id)
-
+        actor_list.append(vehicle)
         return vehicle
 
     def get_gnss(vehicle):
@@ -157,6 +147,15 @@ if __name__ == '__main__':
         gnss = get_gnss(vehicle)
         print_gnss_labels()
         gnss.listen(print_gnss_info)
+        spectator = world.get_spectator()
+
+        def follow(_):
+            t = vehicle.get_location()
+            t.x -= 5
+            t.z += 5
+            spectator.set_location(t)
+
+        ticks.append(world.on_tick(follow))
 
         print('Initiating getting of position data...')
         print_pos_labels()
@@ -170,7 +169,7 @@ if __name__ == '__main__':
             f'{out_folder}/{image.frame:06d}.png'
         ))
 
-        duration = 30
+        duration = 60
         print()
         for i in range(duration, 0, -1):
             print(f'Letting car drive for more {i}s...', end='\r')
@@ -179,16 +178,13 @@ if __name__ == '__main__':
         print('Done!', end='\n\n')
 
     finally:
-        print('Destroying actors...')
-        for actor in actor_list:
-            actor.destroy()
-
         print('Destroying ticks...')
         for tick in ticks:
             world.remove_on_tick(tick)
 
-        print('Destroying autonomous...')
-        client.apply_batch([carla.command.DestroyActor(x) for x in autonomous_list])
+        print('Destroying actors...')
+        for actor in actor_list:
+            actor.destroy()
 
         time.sleep(0.5)
         pos_file.close()
