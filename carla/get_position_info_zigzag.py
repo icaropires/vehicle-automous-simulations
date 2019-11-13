@@ -118,6 +118,7 @@ if __name__ == '__main__':
             world.on_tick(print_pos_info)
         )
 
+        # Zigzag
         for _ in range(20):
             vehicle.apply_control(
                 carla.VehicleControl(throttle=1.0, steer=0.1)
