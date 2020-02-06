@@ -1,3 +1,5 @@
+#!/bin/env python3
+
 import sys
 import csv
 import tkinter
@@ -20,7 +22,7 @@ class GUI:
     csv_window_h = 1800
     scale_from_csv = window_h / csv_window_h  # Assuming width = height
 
-    measurements_interval = 200
+    measurements_interval = 500
 
     def __init__(self):
         self.window = tkinter.Tk()
@@ -36,8 +38,6 @@ class GUI:
         self.canvas.pack()
 
         self.datafile = self.read_datafile()
-
-        self._progress_bar = None
 
     def run(self):
         self.canvas.after(300, self._handle_update)
