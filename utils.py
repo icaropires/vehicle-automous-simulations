@@ -1,0 +1,11 @@
+import numpy as np
+
+x_known = [0, 2, 4, 5, 7, 10, 11, 15, 17, 21, 27.5, 31, 31]  # rssi
+y_known = [6.9, 6, 5, 4.5, 4, 3.25, 3, 2.38, 2, 1.5, 1, 0.5, 0]  # meters
+
+
+def get_rssi_to_meters():
+    x = np.arange(0, 32)
+    y = np.interp(x, x_known, y_known)
+
+    return dict(zip(x, y))
