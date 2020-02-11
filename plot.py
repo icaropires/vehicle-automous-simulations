@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-filename = 'data.csv'
+filename = "data.csv"
 if len(sys.argv) > 1:
     filename = sys.argv[1]
 
